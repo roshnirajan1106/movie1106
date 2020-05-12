@@ -21,6 +21,7 @@ import com.facebook.FacebookException;
 import com.facebook.internal.CallbackManagerImpl;
 import com.facebook.login.LoginResult;
 import com.facebook.login.widget.LoginButton;
+import com.google.android.gms.common.api.GoogleApi;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -28,28 +29,51 @@ import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 
-public class MainActivity extends AppCompatActivity {
+import com.google.android.gms.auth.api.Auth;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.auth.api.signin.GoogleSignInResult;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.SignInButton;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
+
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, GoogleApiClient.OnConnectionFailedListener {
     TextView txt;
     LoginButton btn;
     CallbackManager cm;
-    EditText email,pass;
-    TextView txt1,txt2,txt3;
+    EditText email, pass;
+    TextView txt1, txt2, txt3;
     Button lgn;
     FirebaseAuth fAuth;
+
+    private SignInButton SignIn;
+    private GoogleApiClient googleApiClient;
+    private static final int REQ_CODE = 900;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        txt=findViewById(R.id.text);
-        btn=findViewById(R.id.login);
-        lgn=findViewById(R.id.button2);
-        txt1=findViewById(R.id.textView2);
-        txt2=findViewById(R.id.textView3);
-        txt3=findViewById(R.id.textView4);
-        email=findViewById(R.id.editText);
-        pass=findViewById(R.id.editText2);
-        fAuth= FirebaseAuth.getInstance();
+        txt = findViewById(R.id.text);
+        btn = findViewById(R.id.login);
+        lgn = findViewById(R.id.button2);
+        txt1 = findViewById(R.id.textView2);
+        txt2 = findViewById(R.id.textView3);
+        txt3 = findViewById(R.id.textView4);
+        email = findViewById(R.id.editText);
+        pass = findViewById(R.id.editText2);
+        fAuth = FirebaseAuth.getInstance();
+
+        SignIn = findViewById(R.id.bn_login);
+
+        SignIn.setOnClickListener(this);
+        GoogleSignInOptions signInOptions = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestEmail().build();
+
+        googleApiClient = new GoogleApiClient.Builder(this).enableAutoManage(this, this).addApi(Auth.GOOGLE_SIGN_IN_API, signInOptions).build();
+
         txt2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -61,14 +85,14 @@ public class MainActivity extends AppCompatActivity {
         txt3.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                final EditText resetmail= new EditText(v.getContext());
+                final EditText resetmail = new EditText(v.getContext());
                 AlertDialog.Builder prd = new AlertDialog.Builder(v.getContext());
 
                 prd.setMessage(("Enter your email to recieve the reset password link"));
                 prd.setPositiveButton("YES", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        String mail= resetmail.getText().toString();
+                        String mail = resetmail.getText().toString();
                         fAuth.sendPasswordResetEmail(mail).addOnSuccessListener(new OnSuccessListener<Void>() {
                             @Override
                             public void onSuccess(Void aVoid) {
@@ -78,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
                         }).addOnFailureListener(new OnFailureListener() {
                             @Override
                             public void onFailure(@NonNull Exception e) {
-                                Toast.makeText(MainActivity.this, "Error! in sending the reset password link"+ e.getMessage(), Toast.LENGTH_SHORT).show();
+                                Toast.makeText(MainActivity.this, "Error! in sending the reset password link" + e.getMessage(), Toast.LENGTH_SHORT).show();
                             }
                         });
 
@@ -109,7 +133,7 @@ public class MainActivity extends AppCompatActivity {
                     pass.setError("Room no. is must ");
                     return;
                 }
-                if (room.length() <6) {
+                if (room.length() < 6) {
                     pass.setError("password should be of atleast 6 characters");
                     return;
                 }
@@ -132,37 +156,17 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        cm= CallbackManager.Factory.create();
+        cm = CallbackManager.Factory.create();
         btn.registerCallback(cm, new FacebookCallback<LoginResult>() {
             @Override
             public void onSuccess(LoginResult loginResult) {
-                txt.setText("userid"+ loginResult.getAccessToken().getUserId());
+                txt.setText("userid" + loginResult.getAccessToken().getUserId());
             }
 
             @Override
             public void onCancel() {
-              Intent i= new Intent(getApplicationContext(), Main2Activity.class);
-              startActivity(i);
+                Intent i = new Intent(getApplicationContext(), Main2Activity.class);
+                startActivity(i);
             }
 
             @Override
@@ -176,6 +180,71 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        cm.onActivityResult(requestCode,resultCode,data);
+        cm.onActivityResult(requestCode, resultCode, data);
+
+        if(requestCode==REQ_CODE)
+        {
+            GoogleSignInResult result=Auth.GoogleSignInApi.getSignInResultFromIntent(data);
+            handleResult(result);
+        }
+    }
+
+
+
+
+    private void signin1(){
+
+        Intent intent = Auth.GoogleSignInApi.getSignInIntent(googleApiClient);
+        startActivityForResult(intent,REQ_CODE);
+
+    }
+
+
+    private void handleResult(GoogleSignInResult result){
+        if(result.isSuccess()){
+            GoogleSignInAccount account=result.getSignInAccount();
+            updateUI(true);
+        }
+    }
+
+    private void updateUI(boolean isLogin){
+        if(isLogin){
+            //goto next page
+            Toast.makeText(MainActivity.this,"Signed In Successfully",Toast.LENGTH_SHORT).show();
+        }
+        else{
+            Toast.makeText(MainActivity.this, "Sign In Failed", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    @Override
+    public void onClick(View v) {
+        if (v.getId() == R.id.bn_login) {
+            signin1();
+        }
+
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+
     }
 }
+
+
+
